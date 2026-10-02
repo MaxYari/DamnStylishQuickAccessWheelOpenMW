@@ -1,0 +1,14 @@
+# Blending into the weapon wheel pose, held on the right arm (third person) while the weapon wheel is open.
+#
+# Durations here are game time, and the wheel slows the game to 0.1 while it is open (the
+# "Time Scale While Open" setting), so 0.05 shows as 0.5 s on screen. The pose only starts once
+# the slow-down has set in, so all of the blend runs slowed.
+#
+# Blending back out is not this file's to set: the rules of a transition belong to the
+# animation being blended into, here whatever the arm returns to, which falls under the global
+# animations/animation-config.yaml.
+blending_rules:
+  - from: "*"
+    to: "weaponwheelpose"
+    easing: "sineInOut"
+    duration: 0.05

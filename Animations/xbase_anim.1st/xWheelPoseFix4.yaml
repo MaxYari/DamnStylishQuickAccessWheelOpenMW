@@ -1,0 +1,12 @@
+# The wheel poses with their clavicles re-solved for the chest of idlebowsneak
+# (made by tools/make_pose_variants.py). Blending in: 0.05 s of game time is 0.5 s on
+# screen, as the wheel slows the game to 0.1 (see xWeaponWheelPose.yaml).
+blending_rules:
+  - from: "*"
+    to: "spellwheelpose_fix4"
+    easing: "sineInOut"
+    duration: 0.05
+  - from: "*"
+    to: "weaponwheelpose_fix4"
+    easing: "sineInOut"
+    duration: 0.05
