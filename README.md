@@ -4,6 +4,8 @@ Two wheels of favourites for OpenMW: spells in the bottom-left corner, weapons i
 
 ## ✩ Features
 
+The arm animations were made to be compatible with [ReAnimation v3](https://www.nexusmods.com/morrowind/mods/52596). Without it, some visual issues might (or might not) happen.
+
 - **Hold Ready Magic** (R) for the spell wheel, **hold Ready Weapon** (F) for the weapon wheel. A short press still readies or puts away as usual.
 - **Point with the mouse, let go to equip.** Time slows down while a wheel is open.
 - **Ready Magic / Ready Weapon + Quick Menu** (F1), in either order, adds your current spell or weapon to its wheel. Do it again to take it off.
