@@ -893,7 +893,7 @@ local function showTutorial()
                 type = ui.TYPE.Flex,
                 props = { arrange = ui.ALIGNMENT.Center },
                 content = ui.content {
-                    { template = I.MWUI.templates.textHeader, props = { text = 'Quick Access Wheel' } },
+                    { template = I.MWUI.templates.textHeader, props = { text = 'Handy Stylish Quick Access Wheels' } },
                     gap(),
                     paragraph(string.format('Hold %s for the spell wheel, %s for the weapon wheel. Point the arrow '
                         .. 'with the mouse and let go to equip what it points at.', magic, weapon)),

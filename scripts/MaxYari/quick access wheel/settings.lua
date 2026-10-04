@@ -18,7 +18,7 @@ end
 I.Settings.registerPage {
     key = 'QuickAccessWheelPage',
     l10n = 'QuickAccessWheel',
-    name = 'Quick Access Wheel',
+    name = 'Stylish Quick Access Wheels',
     description = "Hold Ready Magic (R by default) for the spell wheel, Ready Weapon (F) for the weapon " ..
         "wheel, point with the mouse and let go to equip. Ready Magic or Ready Weapon together with Quick " ..
         "Menu (F1), in either order, adds the current spell or weapon to that wheel, or removes it if it " ..

@@ -54,8 +54,8 @@ env:
   NEXUS_PAGE: https://www.nexusmods.com/morrowind/mods/60449
   NEXUSMODS_FILE_ID: "8082207"
   NEXUSMODS_MOD_ID: "429496790049"
-  FILE_DISPLAY_NAME: Damn Stylish Quick Access Wheel
-  ZIP_NAME: DamnStylishQuickAccessWheel
+  FILE_DISPLAY_NAME: Handy Stylish Quick Access Wheels
+  ZIP_NAME: HandyStylishQuickAccessWheels
   VERSION_SOURCE: scripts/MaxYari/quick access wheel/player.lua
 
 jobs:
