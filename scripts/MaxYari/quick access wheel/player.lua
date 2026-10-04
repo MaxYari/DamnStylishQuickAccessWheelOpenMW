@@ -20,6 +20,10 @@
 -- Engine calls: one Actor.getStance per frame (the stance before a press, see onFrame). Everything
 -- else runs only while R/F is held, while a wheel is open, or for a moment after it equips.
 
+-- Mod version, published to Nexus by .github/workflows/nexus-release.yml
+-- (the first `version = ...` in this file)
+local VERSION = "1.0"
+
 local core = require('openmw.core')
 local self = require('openmw.self')
 local types = require('openmw.types')
@@ -45,8 +49,6 @@ local handSettings = storage.playerSection('SettingsQuickAccessWheelHands')
 -- The names of the keys Quick Menu, Ready Magic and Ready Weapon are bound to, each learned the
 -- first time it is pressed.
 local keyNames = storage.playerSection('QuickAccessWheelKeys')
--- Whether the tutorial has been seen.
-local tutorialState = storage.playerSection('QuickAccessWheelTutorial')
 
 local Actor = types.Actor
 local Player = types.Player
@@ -71,6 +73,8 @@ local LOOK_SCALE = 0.1
 local MOD_ID = 'QuickAccessWheel'
 local LABEL_PADDING = 6
 local TUTORIAL_WIDTH = 380
+-- Seconds of real time a wheel is open before the tutorial takes its place.
+local TUTORIAL_DELAY = 1
 -- Right mouse on a slot: a press shorter than CLICK_TIME that doesn't move the slot is a click, and
 -- two clicks on the same slot within DOUBLE_CLICK_TIME remove it; held, it moves the slot.
 local CLICK_TIME = 0.35
@@ -216,6 +220,7 @@ local frame = 0
 local lastKey = nil -- { code, frame }
 local pendingKeyAction = nil -- { name, frame }
 local tutorial = nil -- the open tutorial window
+local tutorialSeen = false -- per character: kept in the save
 
 -- Favourites -----------------------------------------------------------------
 
@@ -352,6 +357,27 @@ local function selectionFromStick()
     return util.clamp(i, 1, count)
 end
 
+local function isAvailable(entry, inventory, spells)
+    if entry.kind == 'spell' then return spells[entry.id] ~= nil end
+    return inventory:countOf(entry.id) > 0
+end
+
+-- Takes the items no longer carried and the spells no longer known off a wheel, as far as the
+-- settings ask for it.
+local function removeMissing(kindName)
+    local removeItems, removeSpells = settings:get('RemoveMissingItems'), settings:get('RemoveMissingSpells')
+    if not (removeItems or removeSpells) then return end
+    local inventory = Actor.inventory(self)
+    local spells = Actor.spells(self)
+    local list = favourites[kindName]
+    for i = #list, 1, -1 do
+        local entry = list[i]
+        local remove
+        if entry.kind == 'spell' then remove = removeSpells else remove = removeItems end
+        if remove and not isAvailable(entry, inventory, spells) then table.remove(list, i) end
+    end
+end
+
 -- Rebuilds the slots from the favourites. `pointAt`: an entry to put the arrow on, or nil to leave
 -- the arrow where it is.
 local function refreshSlots(pointAt)
@@ -360,13 +386,7 @@ local function refreshSlots(pointAt)
     local spells = Actor.spells(self)
     wheel.slots = {}
     for i, entry in ipairs(list) do
-        local available
-        if entry.kind == 'spell' then
-            available = spells[entry.id] ~= nil
-        else
-            available = inventory:countOf(entry.id) > 0
-        end
-        wheel.slots[i] = { entry = entry, available = available }
+        wheel.slots[i] = { entry = entry, available = isAvailable(entry, inventory, spells) }
     end
     wheel.geo = geometry(KINDS[wheel.kind].side, #list)
     if pointAt then pointStickAt(indexOf(list, pointAt)) end
@@ -845,6 +865,58 @@ local function restoreLoadout(state)
     keepQuiet(listen)
 end
 
+-- The tutorial -------------------------------------------------------------------
+
+local function closeTutorial()
+    tutorial:destroy()
+    tutorial = nil
+    tutorialSeen = true
+    if I.UI.getMode() == I.UI.MODE.Interface then I.UI.removeMode(I.UI.MODE.Interface) end
+end
+
+-- Shown the first time a wheel stays open for TUTORIAL_DELAY, in its place: how to open the wheels,
+-- and add, remove and move what is on them. A plain interface mode with no windows gives it the
+-- cursor.
+local function showTutorial()
+    I.UI.addMode(I.UI.MODE.Interface, { windows = {} })
+    local magic, weapon, menu = keyLabel('ToggleSpell'), keyLabel('ToggleWeapon'), keyLabel('QuickKeysMenu')
+    local function paragraph(text)
+        return { template = I.MWUI.templates.textParagraph, props = { text = text, size = v2(TUTORIAL_WIDTH, 0) } }
+    end
+    local function gap() return { props = { size = v2(0, 10) } } end
+    tutorial = ui.create {
+        layer = 'Windows',
+        template = I.MWUI.templates.boxSolidThick,
+        props = { relativePosition = v2(0.5, 0.5), anchor = v2(0.5, 0.5) },
+        content = ui.content {
+            padded({
+                type = ui.TYPE.Flex,
+                props = { arrange = ui.ALIGNMENT.Center },
+                content = ui.content {
+                    { template = I.MWUI.templates.textHeader, props = { text = 'Quick Access Wheel' } },
+                    gap(),
+                    paragraph(string.format('Hold %s for the spell wheel, %s for the weapon wheel. Point the arrow '
+                        .. 'with the mouse and let go to equip what it points at.', magic, weapon)),
+                    gap(),
+                    paragraph(string.format('To add your current spell or weapon to its wheel, press %s while '
+                        .. 'holding %s or %s. Do it again to take it off.', menu, magic, weapon)),
+                    gap(),
+                    paragraph('On the wheel, hold the right mouse button and steer to move the pointed slot; '
+                        .. 'double right click removes it.'),
+                    gap(),
+                    {
+                        template = I.MWUI.templates.boxTransparent,
+                        events = { mouseClick = async:callback(closeTutorial) },
+                        content = ui.content {
+                            padded({ template = I.MWUI.templates.textHeader, props = { text = core.getGMST('sOK') } }, 4),
+                        },
+                    },
+                },
+            }, 12),
+        },
+    }
+end
+
 -- The wheel ----------------------------------------------------------------------
 
 local function focusDepth()
@@ -866,6 +938,7 @@ local function openWheel(kindName, armed)
         sensitivity = settings:get('MouseSensitivity'),
         sounds = settings:get('Sounds'),
         posePending = true,
+        tutorialDue = settings:get('TutorialAlways') or not tutorialSeen,
     }
     if kindName == 'spell' and handSettings:get('FingertipMagic') then
         wheel.fingertipBones = fingertipBones()
@@ -894,6 +967,7 @@ local function openWheel(kindName, armed)
         core.sendGlobalEvent('QuickAccessWheel_TimeScale', { scale = timeScale })
         wheel.slowedTime = timeScale
     end
+    removeMissing(kindName)
     refreshSlots(currentEntry(kindName))
     render()
 end
@@ -958,6 +1032,11 @@ local function updateWheel()
     end
     if not input.isActionPressed(KINDS[wheel.kind].action) then
         closeWheel(true)
+        return
+    end
+    if wheel.tutorialDue and core.getRealTime() - wheel.opened >= TUTORIAL_DELAY then
+        closeWheel(false)
+        showTutorial()
         return
     end
 
@@ -1074,13 +1153,11 @@ local function toggleCurrent(kindName)
     local index = indexOf(list, entry)
     if index then
         table.remove(list, index)
-        ui.showMessage(string.format('%s removed from the %s wheel', entry.name, kind.noun))
         if wheel then refreshSlots(nil) end
     elseif #list >= MAX_SLOTS then
         ui.showMessage(string.format('The %s wheel is full (%d slots)', kind.noun, MAX_SLOTS))
     else
         list[#list + 1] = entry
-        ui.showMessage(string.format('%s added to the %s wheel', entry.name, kind.noun))
         if wheel then refreshSlots(entry) end
     end
 end
@@ -1113,55 +1190,6 @@ local function onTogglePressed(kindName)
     end
 end
 
-local function closeTutorial()
-    tutorial:destroy()
-    tutorial = nil
-    tutorialState:set('Seen', true)
-    if I.UI.getMode() == I.UI.MODE.Interface then I.UI.removeMode(I.UI.MODE.Interface) end
-end
-
--- Shown the first time a wheel would open, instead of it: how to open the wheels, and add, remove
--- and move what is on them. A plain interface mode with no windows gives it the cursor.
-local function showTutorial()
-    I.UI.addMode(I.UI.MODE.Interface, { windows = {} })
-    local magic, weapon, menu = keyLabel('ToggleSpell'), keyLabel('ToggleWeapon'), keyLabel('QuickKeysMenu')
-    local function paragraph(text)
-        return { template = I.MWUI.templates.textParagraph, props = { text = text, size = v2(TUTORIAL_WIDTH, 0) } }
-    end
-    local function gap() return { props = { size = v2(0, 10) } } end
-    tutorial = ui.create {
-        layer = 'Windows',
-        template = I.MWUI.templates.boxSolidThick,
-        props = { relativePosition = v2(0.5, 0.5), anchor = v2(0.5, 0.5) },
-        content = ui.content {
-            padded({
-                type = ui.TYPE.Flex,
-                props = { arrange = ui.ALIGNMENT.Center },
-                content = ui.content {
-                    { template = I.MWUI.templates.textHeader, props = { text = 'Quick Access Wheel' } },
-                    gap(),
-                    paragraph(string.format('Hold %s for the spell wheel, %s for the weapon wheel. Point the arrow '
-                        .. 'with the mouse and let go to equip what it points at.', magic, weapon)),
-                    gap(),
-                    paragraph(string.format('To add your current spell or weapon to its wheel, press %s while '
-                        .. 'holding %s or %s. Do it again to take it off.', menu, magic, weapon)),
-                    gap(),
-                    paragraph('On the wheel, hold the right mouse button and steer to move the pointed slot; '
-                        .. 'double right click removes it.'),
-                    gap(),
-                    {
-                        template = I.MWUI.templates.boxTransparent,
-                        events = { mouseClick = async:callback(closeTutorial) },
-                        content = ui.content {
-                            padded({ template = I.MWUI.templates.textHeader, props = { text = core.getGMST('sOK') } }, 4),
-                        },
-                    },
-                },
-            }, 12),
-        },
-    }
-end
-
 local function updatePress()
     if I.UI.getMode() then
         press = nil
@@ -1174,11 +1202,7 @@ local function updatePress()
     elseif core.getRealTime() - press.start >= press.holdDelay then
         local kindName, combo = press.kind, press.combo
         press = nil
-        if settings:get('TutorialAlways') or not tutorialState:get('Seen') then
-            showTutorial()
-        else
-            openWheel(kindName, not combo)
-        end
+        openWheel(kindName, not combo)
     end
 end
 
@@ -1264,7 +1288,6 @@ local function onMouseButtonRelease(button)
     end
     wheel.lastClick = nil
     table.remove(list, index)
-    ui.showMessage(string.format('%s removed from the %s wheel', drag.entry.name, KINDS[wheel.kind].noun))
     -- The arrow lets go too, so a second click doesn't take out the neighbour.
     pointStickAt(nil)
     refreshSlots(nil)
@@ -1290,11 +1313,13 @@ local function onFrame()
 end
 
 local function onSave()
-    return { version = 1, favourites = favourites }
+    return { version = 1, favourites = favourites, tutorialSeen = tutorialSeen }
 end
 
 local function onLoad(data)
-    if not data or not data.favourites then return end
+    if not data then return end
+    tutorialSeen = data.tutorialSeen or false
+    if not data.favourites then return end
     favourites = {
         spell = data.favourites.spell or {},
         weapon = data.favourites.weapon or {},

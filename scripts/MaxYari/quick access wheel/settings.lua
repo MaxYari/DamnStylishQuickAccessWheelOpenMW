@@ -38,9 +38,15 @@ I.Settings.registerGroup {
         number('TimeScale', 'Time Scale While Open', 0.1, 0.01, 1, "1 leaves time running at full speed."),
         number('MouseSensitivity', 'Mouse Sensitivity', 1, 0.1, 5),
         checkbox('Sounds', 'Click On Pointing At A Slot', true),
+        checkbox('RemoveMissingItems', 'Auto-Remove Items No Longer Carried', true,
+            "As a wheel opens, items that are gone from the inventory are taken off it. Otherwise they " ..
+            "stay on it, greyed out."),
+        checkbox('RemoveMissingSpells', 'Auto-Remove Spells No Longer Known', true,
+            "As the spell wheel opens, spells that are gone from the spell list are taken off it. " ..
+            "Otherwise they stay on it, greyed out."),
         checkbox('TutorialAlways', 'Show The Tutorial Every Time', false,
-            "For trying it out: the tutorial shows instead of the wheel every time. Otherwise it shows " ..
-            "only the first time."),
+            "For trying it out: the tutorial shows every time a wheel has been open for a second. " ..
+            "Otherwise it shows only the first time, once per character."),
     },
 }
 
