@@ -221,6 +221,7 @@ local lastKey = nil -- { code, frame }
 local pendingKeyAction = nil -- { name, frame }
 local tutorial = nil -- the open tutorial window
 local tutorialSeen = false -- per character: kept in the save
+local useBlocked = false
 
 -- Favourites -----------------------------------------------------------------
 
@@ -896,7 +897,8 @@ local function showTutorial()
                     { template = I.MWUI.templates.textHeader, props = { text = 'Handy Stylish Quick Access Wheels' } },
                     gap(),
                     paragraph(string.format('Hold %s for the spell wheel, %s for the weapon wheel. Point the arrow '
-                        .. 'with the mouse and let go to equip what it points at.', magic, weapon)),
+                        .. 'with your look controls (mouse or controller right stick by default) and let go to '
+                        .. 'equip what it points at.', magic, weapon)),
                     gap(),
                     paragraph(string.format('To add your current spell or weapon to its wheel, press %s while '
                         .. 'holding %s or %s. Do it again to take it off.', menu, magic, weapon)),
@@ -935,6 +937,7 @@ local function openWheel(kindName, armed)
         opened = core.getRealTime(),
         stick = v2(0, 0),
         alpha = 0,
+        mouse = settings:get('Navigation') ~= 'Movement Controls',
         sensitivity = settings:get('MouseSensitivity'),
         sounds = settings:get('Sounds'),
         posePending = true,
@@ -958,7 +961,7 @@ local function openWheel(kindName, armed)
         wheel.dofDepth = focusDepth()
         wheel.dofAperture = lookSettings:get('DofAperture')
     end
-    if dynamicCamera and dynamicCamera.setLookSpeedMult then
+    if wheel.mouse and dynamicCamera and dynamicCamera.setLookSpeedMult then
         dynamicCamera.setLookSpeedMult(LOOK_SCALE, MOD_ID)
         wheel.dynamicCamera = dynamicCamera
     end
@@ -999,11 +1002,18 @@ end
 
 local function steer()
     local g = wheel.geo
-    local stick = wheel.stick + v2(g.side * input.getMouseMoveX(), -input.getMouseMoveY()) * wheel.sensitivity
-    local padX = input.getAxisValue(input.CONTROLLER_AXIS.RightX)
-    local padY = input.getAxisValue(input.CONTROLLER_AXIS.RightY)
-    if padX * padX + padY * padY > PAD_DEADZONE * PAD_DEADZONE then
-        stick = v2(g.side * padX, -padY) * STICK_RADIUS
+    local stick = wheel.stick
+    local x, y
+    if wheel.mouse then
+        stick = stick + v2(g.side * input.getMouseMoveX(), -input.getMouseMoveY()) * wheel.sensitivity
+        x = input.getAxisValue(input.CONTROLLER_AXIS.RightX)
+        y = -input.getAxisValue(input.CONTROLLER_AXIS.RightY)
+    else
+        x = input.getRangeActionValue('MoveRight') - input.getRangeActionValue('MoveLeft')
+        y = input.getRangeActionValue('MoveForward') - input.getRangeActionValue('MoveBackward')
+    end
+    if x * x + y * y > PAD_DEADZONE * PAD_DEADZONE then
+        stick = v2(g.side * x, y) * STICK_RADIUS
     end
 
     local length = stick:length()
@@ -1047,7 +1057,10 @@ local function updateWheel()
     -- frame. (Not the Looking control switch: turning it off snaps the character to face north
     -- for a frame, which swings the first-person rig about.)
     local dynamicCamera = wheel.dynamicCamera
-    if not (dynamicCamera and camera.getMode() == camera.MODE.FirstPerson
+    if not wheel.mouse then
+        self.controls.movement = 0
+        self.controls.sideMovement = 0
+    elseif not (dynamicCamera and camera.getMode() == camera.MODE.FirstPerson
             and not dynamicCamera.isCameraControlSuspended()) then
         self.controls.yawChange = self.controls.yawChange * LOOK_SCALE
         self.controls.pitchChange = self.controls.pitchChange * LOOK_SCALE
@@ -1293,11 +1306,22 @@ local function onMouseButtonRelease(button)
     refreshSlots(nil)
 end
 
+local function blockUse()
+    if wheel then
+        useBlocked = true
+    elseif not input.getBooleanActionValue('Use') then
+        useBlocked = false
+        return
+    end
+    self.controls.use = self.ATTACK_TYPE.NoAttack
+end
+
 -- Runs after every input handler of the frame, so the stance read here is the one the next press
 -- started from.
 local function onFrame()
     if press then updatePress() end
     if wheel then updateWheel() end
+    if wheel or useBlocked then blockUse() end
     if pendingStance then updatePendingStance() end
     -- Closed some other way (Escape) counts as seen too.
     if tutorial and I.UI.getMode() ~= I.UI.MODE.Interface then closeTutorial() end

@@ -15,6 +15,18 @@ local function checkbox(key, name, default, description)
     return { key = key, renderer = 'checkbox', default = default, name = name, description = description }
 end
 
+-- The items are the stored values too, shown as they are when there is no translation for them.
+local function choice(key, name, default, items, description)
+    return {
+        key = key,
+        renderer = 'select',
+        default = default,
+        argument = { l10n = 'QuickAccessWheel', items = items },
+        name = name,
+        description = description,
+    }
+end
+
 I.Settings.registerPage {
     key = 'QuickAccessWheelPage',
     l10n = 'QuickAccessWheel',
@@ -36,6 +48,11 @@ I.Settings.registerGroup {
             "Seconds Ready Magic or Ready Weapon must be held before the wheel opens. A shorter press " ..
             "readies or puts away as usual, just at release instead of at press."),
         number('TimeScale', 'Time Scale While Open', 0.1, 0.01, 1, "1 leaves time running at full speed."),
+        choice('Navigation', 'Point The Arrow With', 'Mouse', { 'Mouse', 'Movement Controls' },
+            "Mouse: the mouse (or a controller's right stick) points the arrow, and the view only turns " ..
+            "a little while a wheel is open. Movement Controls: the movement controls point it, and the " ..
+            "character stands still while a wheel is open. Only useful as a controller option, for " ..
+            "pointing with the left stick: the movement keys point in just eight directions."),
         number('MouseSensitivity', 'Mouse Sensitivity', 1, 0.1, 5),
         checkbox('Sounds', 'Click On Pointing At A Slot', true),
         checkbox('RemoveMissingItems', 'Auto-Remove Items No Longer Carried', true,
