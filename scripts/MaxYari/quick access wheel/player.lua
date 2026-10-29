@@ -774,9 +774,6 @@ end
 local function wield(item)
     local equipment = Actor.getEquipment(self)
     equipment[SLOT.CarriedRight] = item
-    if item and types.Weapon.objectIsInstance(item) and TWO_HANDED[types.Weapon.record(item).type] then
-        equipment[SLOT.CarriedLeft] = nil
-    end
     Actor.setEquipment(self, equipment)
 end
 
